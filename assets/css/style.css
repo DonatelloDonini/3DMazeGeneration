@@ -1,0 +1,34 @@
+:root{
+  --background: #7FB7BE;
+  --container: #BC2C1A;
+  --text: #D3F3EE;
+  --accent: #DACC3E;
+  --details: #7D1538;
+}
+
+body, html{
+  height: 100%;
+  width: 100%;
+}
+
+* {
+  margin: 0;
+  box-sizing: border-box;
+}
+
+body{
+  background: var(--background);
+}
+
+h1{
+  min-height: 10vh;
+  line-height: 10vh;
+  text-align: center;
+  background-color: var(--container);
+  color: var(--text);
+}
+
+#mazeContainer{
+  height: 100%;
+  width: 100%;
+}
