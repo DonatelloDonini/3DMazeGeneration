@@ -41,7 +41,7 @@ const sampleUpdates= [
     "direction": 2,
     "floor": 2,
     "positionUpdate": 1,
-    "walls": 0b1101,
+    "walls": 0b1101
   }
 ];
 

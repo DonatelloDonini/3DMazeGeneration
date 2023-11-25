@@ -316,6 +316,20 @@ class Maze{
 
     const positionInMatrix= this._getAbstractPosition();
     this._matrix[positionInMatrix[1]][positionInMatrix[0]]= new _Floor(floorCode);
+
+    if (this._3DModelInitialized){
+      const floorX= this.currentPosition[0] * Maze.TILE_BASE_WIDTH/2 - Maze.TILE_BASE_WIDTH/2;
+      const floorY= this.currentPosition[1] * Maze.TILE_BASE_HEIGHT/2 - Maze.TILE_BASE_HEIGHT/2;
+      const floorZ= 0;
+
+      if (this._matrix[positionInMatrix[1]][positionInMatrix[0]]!== null && (! this._matrix[positionInMatrix[1]][positionInMatrix[0]].alreadyBuilt)){
+        const floorModel= this._matrix[positionInMatrix[1]][positionInMatrix[0]].get3DModel();
+        
+        floorModel.position.set(floorX, floorZ, floorY);
+        
+        this._3DModel.add(floorModel);
+      }
+    }
   }
 
   /**
@@ -337,10 +351,58 @@ class Maze{
     const bottomWallPosition= [positionInMatrix[0], positionInMatrix[1]+1];
     const leftWallPosition= [positionInMatrix[0]-1, positionInMatrix[1]];
     
-    if (topWall && (this._matrix[topWallPosition[1]][topWallPosition[0]]=== null))          this._matrix[topWallPosition[1]][topWallPosition[0]]= new _Wall(this.font);
-    if (rightWall && (this._matrix[rightWallPosition[1]][rightWallPosition[0]]=== null))    this._matrix[rightWallPosition[1]][rightWallPosition[0]]= new _Wall(this.font);
+    if (topWall && (this._matrix[topWallPosition[1]][topWallPosition[0]]=== null))          this._matrix[topWallPosition[1]][topWallPosition[0]]=       new _Wall(this.font);
+    if (rightWall && (this._matrix[rightWallPosition[1]][rightWallPosition[0]]=== null))    this._matrix[rightWallPosition[1]][rightWallPosition[0]]=   new _Wall(this.font);
     if (bottomWall && (this._matrix[bottomWallPosition[1]][bottomWallPosition[0]]=== null)) this._matrix[bottomWallPosition[1]][bottomWallPosition[0]]= new _Wall(this.font);
-    if (leftWall && (this._matrix[leftWallPosition[1]][leftWallPosition[0]]=== null))       this._matrix[leftWallPosition[1]][leftWallPosition[0]]= new _Wall(this.font);
+    if (leftWall && (this._matrix[leftWallPosition[1]][leftWallPosition[0]]=== null))       this._matrix[leftWallPosition[1]][leftWallPosition[0]]=     new _Wall(this.font);
+
+    if (this._3DModelInitialized){
+      const floorX= this.currentPosition[0] * Maze.TILE_BASE_WIDTH/2 - Maze.TILE_BASE_WIDTH/2;
+      const floorY= this.currentPosition[1] * Maze.TILE_BASE_HEIGHT/2 - Maze.TILE_BASE_HEIGHT/2;
+      
+      const wallsZ= (Maze.WALL_HEIGHT/2) + (Maze.TILE_THICKNESS/2);
+
+      if (topWall && (! this._matrix[topWallPosition[1]][topWallPosition[0]].alreadyBuilt)){
+        const topWallModel= this._matrix[topWallPosition[1]][topWallPosition[0]].get3DModel();
+        
+        const wallX= floorX;
+        const wallY= -Maze.TILE_BASE_HEIGHT/2+floorY;
+        topWallModel.position.set(wallX, wallsZ, wallY);
+  
+        this._3DModel.add(topWallModel);
+      }
+      
+      if (rightWall && (! this._matrix[rightWallPosition[1]][rightWallPosition[0]].alreadyBuilt)){
+        const rightWallModel= this._matrix[rightWallPosition[1]][rightWallPosition[0]].get3DModel();
+        rightWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
+        
+        const wallX= Maze.TILE_BASE_WIDTH/2 + floorX;
+        const wallY= floorY;
+        rightWallModel.position.set(wallX, wallsZ, wallY);
+        
+        this._3DModel.add(rightWallModel);
+      }
+      
+      if (bottomWall && (! this._matrix[bottomWallPosition[1]][bottomWallPosition[0]].alreadyBuilt)){
+        const bottomWallModel= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]].get3DModel();
+        
+        const wallX= floorX;
+        const wallY= Maze.TILE_BASE_HEIGHT/2 + floorY;
+        bottomWallModel.position.set(wallX, wallsZ, wallY);
+        this._3DModel.add(bottomWallModel);
+      }
+      
+      if (leftWall && (! this._matrix[leftWallPosition[1]][leftWallPosition[0]].alreadyBuilt)){
+        const leftWallModel= this._matrix[leftWallPosition[1]][leftWallPosition[0]].get3DModel();
+        
+        leftWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
+        const wallX= - Maze.TILE_BASE_WIDTH/2 + floorX;
+        const wallY= floorY;
+        leftWallModel.position.set(wallX, wallsZ, wallY);
+        
+        this._3DModel.add(leftWallModel);
+      }
+    }
   }
 
   /**
@@ -351,53 +413,56 @@ class Maze{
     if (victim=== undefined) return;
     
     let wallWithVictim= null;
-
     const victimSide= victim>= 100 ? Maze.WALL_RIGHT_SIDE : Maze.WALL_LEFT_SIDE;
-    
     const positionInMatrix= this._getAbstractPosition();
+
+    const topWallPosition= [positionInMatrix[0], positionInMatrix[1]-1];
+    const rightWallPosition= [positionInMatrix[0]+1, positionInMatrix[1]];
+    const bottomWallPosition= [positionInMatrix[0], positionInMatrix[1]+1];
+    const leftWallPosition= [positionInMatrix[0]-1, positionInMatrix[1]];
 
     // get the wall
     switch (this.currentDirection) {
       case 0:
         switch (victimSide) {
-          case Maze.WALL_RIGHT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]][positionInMatrix[0]+1];
-            break;
           case Maze.WALL_LEFT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]][positionInMatrix[0]-1];
+            wallWithVictim= this._matrix[leftWallPosition[1]][leftWallPosition[0]];
+            break;
+          case Maze.WALL_RIGHT_SIDE:
+            wallWithVictim= this._matrix[rightWallPosition[1]][rightWallPosition[0]];
             break;
         }
         break;
 
       case 1:
         switch (victimSide) {
-          case Maze.WALL_RIGHT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]+1][positionInMatrix[0]];
-            break;
           case Maze.WALL_LEFT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]-1][positionInMatrix[0]];
+            wallWithVictim= this._matrix[topWallPosition[1]][topWallPosition[0]];
+            break;
+          case Maze.WALL_RIGHT_SIDE:
+            wallWithVictim= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]];
             break;
         }
         break;
 
       case 2:
         switch (victimSide) {
-          case Maze.WALL_RIGHT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]][positionInMatrix[0]-1];
-            break;
           case Maze.WALL_LEFT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]][positionInMatrix[0]+1];
+            wallWithVictim= this._matrix[rightWallPosition[1]][rightWallPosition[0]];
+            break;
+          case Maze.WALL_RIGHT_SIDE:
+            wallWithVictim= this._matrix[leftWallPosition[1]][leftWallPosition[0]];
             break;
         }
         break;
 
       case 3:
         switch (victimSide) {
-          case Maze.WALL_RIGHT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]-1][positionInMatrix[0]];
-            break;
           case Maze.WALL_LEFT_SIDE:
-            wallWithVictim= this._matrix[positionInMatrix[1]+1][positionInMatrix[0]];
+            wallWithVictim= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]];
+            break;
+          case Maze.WALL_RIGHT_SIDE:
+            wallWithVictim= this._matrix[topWallPosition[1]][topWallPosition[0]];
             break;
         }
         break;
@@ -407,6 +472,10 @@ class Maze{
     
     if (this.currentDirection=== 0 || this.currentDirection=== 1) wallWithVictim.setVictim(victim%100, victimSide===Maze.WALL_LEFT_SIDE ? Maze.WALL_RIGHT_SIDE : Maze.WALL_LEFT_SIDE);
     if (this.currentDirection=== 2 || this.currentDirection=== 3) wallWithVictim.setVictim(victim%100, victimSide);
+
+    if (this._3DModelInitialized){
+      wallWithVictim.get3DModel();
+    }
   }
 
   /**
@@ -419,160 +488,12 @@ class Maze{
   }
 
   /**
-   * Updates the logical model of the maze.
-   * @param {object} updatePackage An object containing all the changes done from the previous package sent.
+   * Get the position that the robot has inside the abstract matrix.\
+   * This position doesn't refer to the real position in space, this.currentPosition does.
+   * 
+   * @private
+   * @returns {[number, number]}
    */
-  _updateAbstraction(updatePackage){
-    this._updateDirection(updatePackage.direction);
-    
-    this._updatePosition(updatePackage.positionUpdate);
-    
-    this._setFloor(updatePackage.floor);
-    
-    this._setWalls(updatePackage.walls);
-    
-    this._setVictim(updatePackage.victim);
-    // this._setRamp(updatePackage.ramp);
-  }
-
-  _update3DModel(updatePackage){
-    //////              //////
-    ////// floor update //////
-    //////              //////
-
-    const positionInMatrix= this._getAbstractPosition();
-    
-    const floorX= this.currentPosition[0] * Maze.TILE_BASE_WIDTH/2 - Maze.TILE_BASE_WIDTH/2;
-    const floorY= this.currentPosition[1] * Maze.TILE_BASE_HEIGHT/2 - Maze.TILE_BASE_HEIGHT/2;
-    const floorZ= 0;
-
-    if (this._matrix[positionInMatrix[1]][positionInMatrix[0]]!== null && (! this._matrix[positionInMatrix[1]][positionInMatrix[0]].alreadyBuilt)){
-      const floorModel= this._matrix[positionInMatrix[1]][positionInMatrix[0]].get3DModel();
-      
-      floorModel.position.set(floorX, floorZ, floorY);
-      
-      this._3DModel.add(floorModel);
-    }
-
-    //////             //////
-    ////// wall update //////
-    //////             //////
-
-    const wallCoords=[
-      [positionInMatrix[0], positionInMatrix[1]-1], // top wall coord
-      [positionInMatrix[0]+1, positionInMatrix[1]], // right wall coord
-      [positionInMatrix[0], positionInMatrix[1]+1], // bottom wall coord
-      [positionInMatrix[0]-1, positionInMatrix[1]]  // left wall coord
-    ];
-
-    const wallsZ= (Maze.WALL_HEIGHT/2) + (Maze.TILE_THICKNESS/2);
-
-    if (this._matrix[wallCoords[0][1]][wallCoords[0][0]]!== null && (! this._matrix[wallCoords[0][1]][wallCoords[0][0]].alreadyBuilt)){
-      const topWallModel= this._matrix[wallCoords[0][1]][wallCoords[0][0]].get3DModel();
-      
-      const wallX= floorX;
-      const wallY= -Maze.TILE_BASE_HEIGHT/2+floorY;
-      topWallModel.position.set(wallX, wallsZ, wallY);
-
-      this._3DModel.add(topWallModel);
-    }
-    
-    if (this._matrix[wallCoords[1][1]][wallCoords[1][0]]!== null && (! this._matrix[wallCoords[1][1]][wallCoords[1][0]].alreadyBuilt)){
-      const rightWallModel= this._matrix[wallCoords[1][1]][wallCoords[1][0]].get3DModel();
-      rightWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
-      
-      const wallX= Maze.TILE_BASE_WIDTH/2 + floorX;
-      const wallY= floorY;
-      rightWallModel.position.set(wallX, wallsZ, wallY);
-      
-      this._3DModel.add(rightWallModel);
-    }
-    
-    if (this._matrix[wallCoords[2][1]][wallCoords[2][0]]!== null && (! this._matrix[wallCoords[2][1]][wallCoords[2][0]].alreadyBuilt)){
-      const bottomWallModel= this._matrix[wallCoords[2][1]][wallCoords[2][0]].get3DModel();
-      
-      const wallX= floorX;
-      const wallY= Maze.TILE_BASE_HEIGHT/2 + floorY;
-      bottomWallModel.position.set(wallX, wallsZ, wallY);
-      this._3DModel.add(bottomWallModel);
-    }
-    
-    if (this._matrix[wallCoords[3][1]][wallCoords[3][0]]!== null && (! this._matrix[wallCoords[3][1]][wallCoords[3][0]].alreadyBuilt)){
-      const leftWallModel= this._matrix[wallCoords[3][1]][wallCoords[3][0]].get3DModel();
-      
-      leftWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
-      const wallX= - Maze.TILE_BASE_WIDTH/2 + floorX;
-      const wallY= floorY;
-      leftWallModel.position.set(wallX, wallsZ, wallY);
-      
-      this._3DModel.add(leftWallModel);
-    }
-
-    //////               //////
-    ////// victim update //////
-    //////               //////
-
-    if (updatePackage.victim){
-      inspector.logInfo(`victim passed: ${updatePackage.victim}`);
-      inspector.logInfo(`left wall: ${this._matrix[wallCoords[3][1]][wallCoords[3][0]]}`);
-      console.log(this._matrix[wallCoords[3][1]][wallCoords[3][0]]);
-      inspector.logInfo(`right wall: ${this._matrix[wallCoords[1][1]][wallCoords[1][0]]}`);
-      console.log(this._matrix[wallCoords[1][1]][wallCoords[1][0]]);
-
-      const victimSide= updatePackage.victim>= 100 ? Maze.WALL_RIGHT_SIDE : Maze.WALL_LEFT_SIDE;
-
-      switch (this.currentDirection) {
-        case 0:
-          switch (victimSide) {
-            case Maze.WALL_LEFT_SIDE:
-              this._matrix[wallCoords[3][1]][wallCoords[3][0]].get3DModel(); // updating right wall
-              break;
-            case Maze.WALL_RIGHT_SIDE:
-              this._matrix[wallCoords[1][1]][wallCoords[1][0]].get3DModel(); // updating right wall
-              break;
-          }
-          break;
-
-
-        case 1:
-          switch (victimSide) {
-            case Maze.WALL_LEFT_SIDE:
-              this._matrix[wallCoords[0][1]][wallCoords[0][0]].get3DModel(); // updating top wall
-              break;
-            case Maze.WALL_RIGHT_SIDE:
-              this._matrix[wallCoords[2][1]][wallCoords[2][0]].get3DModel(); // updating bottom wall
-              break;
-          }
-          break;
-
-
-        case 2:
-          switch (victimSide) {
-            case Maze.WALL_LEFT_SIDE:
-              this._matrix[wallCoords[1][1]][wallCoords[1][0]].get3DModel(); // updating right wall
-              break;
-            case Maze.WALL_RIGHT_SIDE:
-              this._matrix[wallCoords[3][1]][wallCoords[3][0]].get3DModel(); // updating left wall
-              break;
-          }
-          break;
-
-
-        case 3:
-          switch (victimSide) {
-            case Maze.WALL_LEFT_SIDE:
-              this._matrix[wallCoords[2][1]][wallCoords[2][0]].get3DModel(); // updating bottom wall
-              break;
-            case Maze.WALL_RIGHT_SIDE:
-              this._matrix[wallCoords[0][1]][wallCoords[0][0]].get3DModel(); // updating top wall
-              break;
-          }
-          break;
-      }
-    }
-    return;
-  }
-
   _getAbstractPosition(){
     return [this._origin[0]+ (this.currentPosition[0]-1), this._origin[1]+ (this.currentPosition[1]-1)];
   }
@@ -583,18 +504,23 @@ class Maze{
    * @param {object} updatePackage An object containing all the changes done from the previous package sent.
    */
   update(updatePackage){
+    if (! this._3DModelInitialized) console.warn("3D model not initialized, only updating the logical model");
+
     this._checkForLostPackages(updatePackage.id);
     
-    this._updateAbstraction(updatePackage);
+    this._updateDirection(updatePackage.direction);
+    
+    this._updatePosition(updatePackage.positionUpdate);
 
+    this._setFloor(updatePackage.floor);
+
+    this._setWalls(updatePackage.walls);
+
+    this._setVictim(updatePackage.victim);
+
+    // this._setRamp(updatePackage.ramp);
+    
     console.log(this.toString());
-
-    if (this._3DModelInitialized){
-      this._update3DModel(updatePackage);
-    }
-    else{
-      console.warn("3D model not initialized, updating only the abstraction");
-    }
   }
 
   /**
