@@ -7,8 +7,8 @@ A JS-based web interface to visualize 3D models of a certain Rescue Maze map bas
 - Support for flat mazes
 - Dynamic generation
 
-## V 1.1.0:
-- Support for multi-level mazes (work in progress)
+## V 1.1.0  (current update):
+- Support for multi-level mazes
 - Performance optimizations
 
 ## V 1.2.0 (future update):
