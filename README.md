@@ -1,5 +1,6 @@
 # 3DMazeGeneration
 A JS-based web interface to visualize 3D models of a certain Rescue Maze map based on a set (a sequence) of packages sent from a robot.
+
 ![image](https://github.com/DonatelloDonini/3DMazeGeneration/assets/134225482/d969fb18-874b-4c42-a3b4-6e7eb857b9ef)
 
 ## V 1.0.0:
