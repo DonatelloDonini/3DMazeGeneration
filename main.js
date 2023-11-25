@@ -41,7 +41,7 @@ const sampleUpdates= [
     "direction": 2,
     "floor": 2,
     "positionUpdate": 1,
-    "walls": 0b1101
+    "walls": 0b1101,
   }
 ];
 
@@ -91,7 +91,7 @@ async function main(){
     MIDDLE: THREE.MOUSE.MIDDLE,
     RIGHT: THREE.MOUSE.RIGHT
   };
-  // controls.enablePan= false;
+  controls.enablePan= false;
 
   //////                           //////
   ////// 3D environment generation //////
