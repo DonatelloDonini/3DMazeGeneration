@@ -14,6 +14,7 @@ A JS-based web interface to visualize 3D models of a certain Rescue Maze map bas
 ## V 1.1.0  (current update):
 - Support for multi-level mazes
 - Performance optimizations
+- Loop closure
 
 ## V 1.2.0 (future update):
 - A placeholder model of the robot is shown navigating the maze
