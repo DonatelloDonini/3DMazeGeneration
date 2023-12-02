@@ -1,12 +1,12 @@
 class Debugger{
-  constructor(enableTesting, enableInfo, enableWarning){
-    this.enableTesting= enableTesting;
-    this.enableInfo= enableInfo;
-    this.enableWarning= enableWarning;
+  constructor(testingEnabled= false, infoEnabled= false, warningsEnabled= false){
+    this.testingEnabled= testingEnabled;
+    this.infoEnabled= infoEnabled;
+    this.warningsEnabled= warningsEnabled;
   }
 
   test(successMessage, failMessage, test){
-    if (! this.enableTesting) return;
+    if (! this.testingEnabled) return;
     if (test()){
       console.log(`%c[ PASS ]\t${successMessage}`, "color: lime");
     }
@@ -16,19 +16,43 @@ class Debugger{
   }
   
   logInfo(message){
-    if (! this.enableInfo) return;
+    if (! this.infoEnabled) return;
 
     console.log(`%c[ INFO ]\t${message}`, "color: white");
   }
   
   logWarning(message){
-    if (! this.enableWarning) return;
+    if (! this.warningsEnabled) return;
 
-    console.log(`%c[ WARN ]\t${message}`, "color: yellow");
+    console.log(`%c[ WARN ]\t${message}`, "color: orange");
   }
 
   separator(){
     console.log("------------");
+  }
+
+  enableTesting(){
+    this.testingEnabled= true;
+  }
+
+  enableInfo(){
+    this.infoEnabled= true;
+  }
+
+  enableWarning(){
+    this.warningsEnabled= true;
+  }
+
+  disableTesting(){
+    this.testingEnabled= false;
+  }
+  
+  disableInfo(){
+    this.infoEnabled= false;
+  }
+  
+  disableWarning(){
+    this.warningsEnabled= false;
   }
 }
 

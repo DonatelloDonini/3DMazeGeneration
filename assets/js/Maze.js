@@ -8,7 +8,10 @@ import { Reflector } from "three/examples/jsm/objects/Reflector";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
 import Debugger from "./Debugger";
 
-const inspector= new Debugger(true, true, true);
+const inspector= new Debugger();
+inspector.disableInfo();
+inspector.enableTesting();
+inspector.enableWarning();
 
 /**
  * Load a 3D font.
@@ -59,7 +62,7 @@ const rotateArray = (arr, positions) => {
     arr.slice(arr.length - rotation).concat(arr.slice(0, arr.length - rotation));
 };
 
-class Maze{
+class _Maze{
 
   //////               //////
   ////// tile measures //////
@@ -126,15 +129,17 @@ class Maze{
     metalness: .1
   });
   
-  constructor(){
-    this.initializeAbstraction();
-    this._3DModelInitialized= false;
+  static VICTIMS_FONT= null;
+
+  constructor(shiftX, shiftY, shiftZ){
+    this.position= new THREE.Vector3(shiftX, shiftY, shiftZ);
+    this._initialize();
   }
 
   /**
    * Sets all the initial properties for the logic model.
    */
-  initializeAbstraction(){
+  _initialize(){
     this._matrix= [
       [null, null, null],
       [null, null, null],
@@ -142,20 +147,20 @@ class Maze{
     ];
 
     this.currentPosition= [1, 1];
-    this.currentDirection= 0;
     this._currentPackageNumber= 0;
     this._origin= [1, 1];
+    this._3DModel= new THREE.Group();
+    this._3DModel.position.copy(this.position);
   }
 
   /**
-   * Load the default properties in order to prepare the 3D model.
+   * Load the font in which the victims are written.
+   * @static
+   * @async
    */
-  async initialize3DModel(){
+  static async initializeFont(){
     const fontPath= "assets/fonts/droid/droid_sans_mono_regular.typeface.json";
-    this.font= await loadFontAsync(fontPath);
-
-    this._3DModel= new THREE.Group();
-    this._3DModelInitialized= true;
+    _Maze.VICTIMS_FONT= await loadFontAsync(fontPath);
   }
 
   /**
@@ -188,29 +193,6 @@ class Maze{
    */
   _getHeight(){
     return this._matrix.length;
-  }
-
-  /**
-   * Checks wether there were lost packages during communication.
-   * @param {number} id The progressive number indexing an update package.
-   * @throws {CUSOTM_ERRORS.LostPackageError} if there were lost packages.
-   */
-  _checkForLostPackages(id){
-    if (this._currentPackageNumber!== id){
-      throw new CUSOTM_ERRORS.LostPackageError();
-    }
-    else{
-      this._currentPackageNumber++;
-    }
-  }
-
-  /**
-   * Set the direction of the robot.
-   * @param {number} direction A number representing the direction the robot is facing.
-   */
-  _updateDirection(direction){
-    if (direction=== undefined) return;
-    this.currentDirection= direction;
   }
 
   /**
@@ -284,63 +266,65 @@ class Maze{
    * 
    * @param {number} positionUpdate Wether if the robot has moved one cell forward or not.
    */
-  _updatePosition(positionUpdate){
+  updatePosition(positionUpdate, direction){
     if (positionUpdate=== undefined) return;
     
-    switch (this.currentDirection) {
+    switch (direction) {
       case 0:
-        this.currentPosition[1]-= 2;
+        this.currentPosition[1]-= 2 * positionUpdate;
         break;
       case 1:
-        this.currentPosition[0]+= 2;
+        this.currentPosition[0]+= 2 * positionUpdate;
         break;
       case 2:
-        this.currentPosition[1]+= 2;
+        this.currentPosition[1]+= 2 * positionUpdate;
         break;
       case 3:
-        this.currentPosition[0]-= 2;
+        this.currentPosition[0]-= 2 * positionUpdate;
         break;
     
-      default: throw new CUSOTM_ERRORS.NotValidDirectionError(this.currentDirection);
+      default: throw new CUSOTM_ERRORS.NotValidDirectionError(direction);
     }
 
     this._updateMazeDimensions(this.currentPosition);
+    inspector.logInfo("position updated");
   }
 
   /**
    * Set the floor informations for the current cell.
    * @param {number} floorCode A number representing the type of floor the robot is currently navigating on
    */
-  _setFloor(floorCode){
+  addFloor(floorCode){
     if (floorCode=== undefined) return;
 
     const positionInMatrix= this._getAbstractPosition();
     this._matrix[positionInMatrix[1]][positionInMatrix[0]]= new _Floor(floorCode);
 
-    if (this._3DModelInitialized){
-      const floorX= this.currentPosition[0] * Maze.TILE_BASE_WIDTH/2 - Maze.TILE_BASE_WIDTH/2;
-      const floorY= this.currentPosition[1] * Maze.TILE_BASE_HEIGHT/2 - Maze.TILE_BASE_HEIGHT/2;
-      const floorZ= 0;
+    if (
+      this._matrix[positionInMatrix[1]][positionInMatrix[0]]!== null &&
+      (! this._matrix[positionInMatrix[1]][positionInMatrix[0]].alreadyBuilt)
+      ){
+      const floorX= this.currentPosition[0] * _Maze.TILE_BASE_WIDTH/2 - _Maze.TILE_BASE_WIDTH/2;
+      const floorY= 0;
+      const floorZ= this.currentPosition[1] * _Maze.TILE_BASE_HEIGHT/2 - _Maze.TILE_BASE_HEIGHT/2;
 
-      if (this._matrix[positionInMatrix[1]][positionInMatrix[0]]!== null && (! this._matrix[positionInMatrix[1]][positionInMatrix[0]].alreadyBuilt)){
-        const floorModel= this._matrix[positionInMatrix[1]][positionInMatrix[0]].get3DModel();
-        
-        floorModel.position.set(floorX, floorZ, floorY);
-        
-        this._3DModel.add(floorModel);
-      }
+      const floorModel= this._matrix[positionInMatrix[1]][positionInMatrix[0]].get3DModel();
+      floorModel.position.set(floorX, floorY, floorZ);
+      
+      this._3DModel.add(floorModel);
     }
+    inspector.logInfo("floor updated");
   }
 
   /**
    * Set the robot's surrounding walls'informations.
    * @param {number} walls A number representing all the four walls currently around the robot.
    */
-  _setWalls(walls){
+  addWalls(walls, direction){
     if (walls=== undefined) return;
     
     // unpack the walls
-    const wallsBinaryArray= rotateArray(getBinaryArray(walls, 4), this.currentDirection);
+    const wallsBinaryArray= rotateArray(getBinaryArray(walls, 4), direction);
     
     const [topWall, rightWall, bottomWall, leftWall]= wallsBinaryArray;
     
@@ -351,69 +335,68 @@ class Maze{
     const bottomWallPosition= [positionInMatrix[0], positionInMatrix[1]+1];
     const leftWallPosition= [positionInMatrix[0]-1, positionInMatrix[1]];
     
-    if (topWall && (this._matrix[topWallPosition[1]][topWallPosition[0]]=== null))          this._matrix[topWallPosition[1]][topWallPosition[0]]=       new _Wall(this.font);
-    if (rightWall && (this._matrix[rightWallPosition[1]][rightWallPosition[0]]=== null))    this._matrix[rightWallPosition[1]][rightWallPosition[0]]=   new _Wall(this.font);
-    if (bottomWall && (this._matrix[bottomWallPosition[1]][bottomWallPosition[0]]=== null)) this._matrix[bottomWallPosition[1]][bottomWallPosition[0]]= new _Wall(this.font);
-    if (leftWall && (this._matrix[leftWallPosition[1]][leftWallPosition[0]]=== null))       this._matrix[leftWallPosition[1]][leftWallPosition[0]]=     new _Wall(this.font);
+    if (topWall && (this._matrix[topWallPosition[1]][topWallPosition[0]]=== null))          this._matrix[topWallPosition[1]][topWallPosition[0]]=       new _Wall();
+    if (rightWall && (this._matrix[rightWallPosition[1]][rightWallPosition[0]]=== null))    this._matrix[rightWallPosition[1]][rightWallPosition[0]]=   new _Wall();
+    if (bottomWall && (this._matrix[bottomWallPosition[1]][bottomWallPosition[0]]=== null)) this._matrix[bottomWallPosition[1]][bottomWallPosition[0]]= new _Wall();
+    if (leftWall && (this._matrix[leftWallPosition[1]][leftWallPosition[0]]=== null))       this._matrix[leftWallPosition[1]][leftWallPosition[0]]=     new _Wall();
 
-    if (this._3DModelInitialized){
-      const floorX= this.currentPosition[0] * Maze.TILE_BASE_WIDTH/2 - Maze.TILE_BASE_WIDTH/2;
-      const floorY= this.currentPosition[1] * Maze.TILE_BASE_HEIGHT/2 - Maze.TILE_BASE_HEIGHT/2;
-      
-      const wallsZ= (Maze.WALL_HEIGHT/2) + (Maze.TILE_THICKNESS/2);
+    const floorX= this.currentPosition[0] * _Maze.TILE_BASE_WIDTH/2 - _Maze.TILE_BASE_WIDTH/2;
+    const floorZ= this.currentPosition[1] * _Maze.TILE_BASE_HEIGHT/2 - _Maze.TILE_BASE_HEIGHT/2;
+    
+    const wallsY= (_Maze.WALL_HEIGHT/2) + (_Maze.TILE_THICKNESS/2);
 
-      if (topWall && (! this._matrix[topWallPosition[1]][topWallPosition[0]].alreadyBuilt)){
-        const topWallModel= this._matrix[topWallPosition[1]][topWallPosition[0]].get3DModel();
-        
-        const wallX= floorX;
-        const wallY= -Maze.TILE_BASE_HEIGHT/2+floorY;
-        topWallModel.position.set(wallX, wallsZ, wallY);
-  
-        this._3DModel.add(topWallModel);
-      }
+    if (topWall && (! this._matrix[topWallPosition[1]][topWallPosition[0]].alreadyBuilt)){
+      const topWallModel= this._matrix[topWallPosition[1]][topWallPosition[0]].get3DModel();
       
-      if (rightWall && (! this._matrix[rightWallPosition[1]][rightWallPosition[0]].alreadyBuilt)){
-        const rightWallModel= this._matrix[rightWallPosition[1]][rightWallPosition[0]].get3DModel();
-        rightWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
-        
-        const wallX= Maze.TILE_BASE_WIDTH/2 + floorX;
-        const wallY= floorY;
-        rightWallModel.position.set(wallX, wallsZ, wallY);
-        
-        this._3DModel.add(rightWallModel);
-      }
-      
-      if (bottomWall && (! this._matrix[bottomWallPosition[1]][bottomWallPosition[0]].alreadyBuilt)){
-        const bottomWallModel= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]].get3DModel();
-        
-        const wallX= floorX;
-        const wallY= Maze.TILE_BASE_HEIGHT/2 + floorY;
-        bottomWallModel.position.set(wallX, wallsZ, wallY);
-        this._3DModel.add(bottomWallModel);
-      }
-      
-      if (leftWall && (! this._matrix[leftWallPosition[1]][leftWallPosition[0]].alreadyBuilt)){
-        const leftWallModel= this._matrix[leftWallPosition[1]][leftWallPosition[0]].get3DModel();
-        
-        leftWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
-        const wallX= - Maze.TILE_BASE_WIDTH/2 + floorX;
-        const wallY= floorY;
-        leftWallModel.position.set(wallX, wallsZ, wallY);
-        
-        this._3DModel.add(leftWallModel);
-      }
+      const wallX= floorX;
+      const wallZ= -_Maze.TILE_BASE_HEIGHT/2+floorZ;
+      topWallModel.position.set(wallX, wallsY, wallZ);
+
+      this._3DModel.add(topWallModel);
     }
+    
+    if (rightWall && (! this._matrix[rightWallPosition[1]][rightWallPosition[0]].alreadyBuilt)){
+      const rightWallModel= this._matrix[rightWallPosition[1]][rightWallPosition[0]].get3DModel();
+      rightWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
+      
+      const wallX= _Maze.TILE_BASE_WIDTH/2 + floorX;
+      const wallZ= floorZ;
+      rightWallModel.position.set(wallX, wallsY, wallZ);
+      
+      this._3DModel.add(rightWallModel);
+    }
+    
+    if (bottomWall && (! this._matrix[bottomWallPosition[1]][bottomWallPosition[0]].alreadyBuilt)){
+      const bottomWallModel= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]].get3DModel();
+      
+      const wallX= floorX;
+      const wallZ= _Maze.TILE_BASE_HEIGHT/2 + floorZ;
+      bottomWallModel.position.set(wallX, wallsY, wallZ);
+      this._3DModel.add(bottomWallModel);
+    }
+    
+    if (leftWall && (! this._matrix[leftWallPosition[1]][leftWallPosition[0]].alreadyBuilt)){
+      const leftWallModel= this._matrix[leftWallPosition[1]][leftWallPosition[0]].get3DModel();
+      
+      leftWallModel.rotation.y+= new MEASURES.Degrees(90).toRadians();
+      const wallX= - _Maze.TILE_BASE_WIDTH/2 + floorX;
+      const wallZ= floorZ;
+      leftWallModel.position.set(wallX, wallsY, wallZ);
+      
+      this._3DModel.add(leftWallModel);
+    }
+    inspector.logInfo("walls updated");
   }
 
   /**
    * Set the victim's informations.
    * @param {number} victim A number representing the victim found in the current position.
    */
-  _setVictim(victim){
+  addVictim(victim, direction){
     if (victim=== undefined) return;
     
     let wallWithVictim= null;
-    const victimSide= victim>= 100 ? Maze.WALL_RIGHT_SIDE : Maze.WALL_LEFT_SIDE;
+    const victimSide= victim>= 100 ? _Maze.WALL_RIGHT_SIDE : _Maze.WALL_LEFT_SIDE;
     const positionInMatrix= this._getAbstractPosition();
 
     const topWallPosition= [positionInMatrix[0], positionInMatrix[1]-1];
@@ -422,13 +405,13 @@ class Maze{
     const leftWallPosition= [positionInMatrix[0]-1, positionInMatrix[1]];
 
     // get the wall
-    switch (this.currentDirection) {
+    switch (direction) {
       case 0:
         switch (victimSide) {
-          case Maze.WALL_LEFT_SIDE:
+          case _Maze.WALL_LEFT_SIDE:
             wallWithVictim= this._matrix[leftWallPosition[1]][leftWallPosition[0]];
             break;
-          case Maze.WALL_RIGHT_SIDE:
+          case _Maze.WALL_RIGHT_SIDE:
             wallWithVictim= this._matrix[rightWallPosition[1]][rightWallPosition[0]];
             break;
         }
@@ -436,10 +419,10 @@ class Maze{
 
       case 1:
         switch (victimSide) {
-          case Maze.WALL_LEFT_SIDE:
+          case _Maze.WALL_LEFT_SIDE:
             wallWithVictim= this._matrix[topWallPosition[1]][topWallPosition[0]];
             break;
-          case Maze.WALL_RIGHT_SIDE:
+          case _Maze.WALL_RIGHT_SIDE:
             wallWithVictim= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]];
             break;
         }
@@ -447,10 +430,10 @@ class Maze{
 
       case 2:
         switch (victimSide) {
-          case Maze.WALL_LEFT_SIDE:
+          case _Maze.WALL_LEFT_SIDE:
             wallWithVictim= this._matrix[rightWallPosition[1]][rightWallPosition[0]];
             break;
-          case Maze.WALL_RIGHT_SIDE:
+          case _Maze.WALL_RIGHT_SIDE:
             wallWithVictim= this._matrix[leftWallPosition[1]][leftWallPosition[0]];
             break;
         }
@@ -458,32 +441,32 @@ class Maze{
 
       case 3:
         switch (victimSide) {
-          case Maze.WALL_LEFT_SIDE:
+          case _Maze.WALL_LEFT_SIDE:
             wallWithVictim= this._matrix[bottomWallPosition[1]][bottomWallPosition[0]];
             break;
-          case Maze.WALL_RIGHT_SIDE:
+          case _Maze.WALL_RIGHT_SIDE:
             wallWithVictim= this._matrix[topWallPosition[1]][topWallPosition[0]];
             break;
         }
         break;
     }
 
-    if (wallWithVictim=== null) wallWithVictim= new _Wall(this.font);
+    if (wallWithVictim=== null) wallWithVictim= new _Wall();
     
-    if (this.currentDirection=== 0 || this.currentDirection=== 1) wallWithVictim.setVictim(victim%100, victimSide===Maze.WALL_LEFT_SIDE ? Maze.WALL_RIGHT_SIDE : Maze.WALL_LEFT_SIDE);
-    if (this.currentDirection=== 2 || this.currentDirection=== 3) wallWithVictim.setVictim(victim%100, victimSide);
+    if (direction=== 0 || direction=== 1) wallWithVictim.setVictim(victim%100, victimSide===_Maze.WALL_LEFT_SIDE ? _Maze.WALL_RIGHT_SIDE : _Maze.WALL_LEFT_SIDE);
+    if (direction=== 2 || direction=== 3) wallWithVictim.setVictim(victim%100, victimSide);
 
-    if (this._3DModelInitialized){
+    if (_Maze.VICTIMS_FONT!== null){
       wallWithVictim.get3DModel();
     }
+    inspector.logInfo("victims updated");
   }
 
   /**
-   * Set a tile to ramp, this will trigger the creation of a new Maze level.
-   * @param {number} ramp The eventual length of a ramp found.
+   * Link a maze to another with a ramp.
+   * @param {_Maze} otherMaze Another maze, specifically the one the ramp takes to.
    */
-  _setRamp(ramp){
-    if (ramp=== null) return;
+  rampToOtherMaze(otherMaze){
     throw new CUSOTM_ERRORS.NotImplementedError();
   }
 
@@ -496,31 +479,6 @@ class Maze{
    */
   _getAbstractPosition(){
     return [this._origin[0]+ (this.currentPosition[0]-1), this._origin[1]+ (this.currentPosition[1]-1)];
-  }
-
-  /**
-   * Update the maze using a pre-defined update package.
-   * 
-   * @param {object} updatePackage An object containing all the changes done from the previous package sent.
-   */
-  update(updatePackage){
-    if (! this._3DModelInitialized) console.warn("3D model not initialized, only updating the logical model");
-
-    this._checkForLostPackages(updatePackage.id);
-    
-    this._updateDirection(updatePackage.direction);
-    
-    this._updatePosition(updatePackage.positionUpdate);
-
-    this._setFloor(updatePackage.floor);
-
-    this._setWalls(updatePackage.walls);
-
-    this._setVictim(updatePackage.victim);
-
-    // this._setRamp(updatePackage.ramp);
-    
-    console.log(this.toString());
   }
 
   /**
@@ -542,6 +500,9 @@ class Maze{
         else if (currentCell instanceof _Wall){
           refill+= " W";
         }
+        else if (currentCell instanceof _Ramp){
+          refill+= " R";
+        }
       }
       refill+= "\n";
     }
@@ -552,8 +513,7 @@ class Maze{
 
 class _Wall{
 
-  constructor(font, leftSideVictim= null, rightSideVictim= null){
-    this.font= font;
+  constructor(leftSideVictim= null, rightSideVictim= null){
     this.leftSideVictim= leftSideVictim;
     this.rightSideVictim= rightSideVictim;
     this._3DModel= new THREE.Group();
@@ -568,7 +528,7 @@ class _Wall{
    * @throws {CUSOTM_ERRORS.InvalidVictimError} If the victim number passed isn't compatible with the ones listed in the "Maze" class.
    */
   _isValidVictim(victimType){
-    if (! [Maze.U_VICTIM_CODE, Maze.H_VICTIM_CODE, Maze.S_VICTIM_CODE, Maze.GREEN_VICTIM_CODE, Maze.YELLOW_VICTIM_CODE, Maze.RED_VICTIM_CODE].includes(victimType)){
+    if (! [_Maze.U_VICTIM_CODE, _Maze.H_VICTIM_CODE, _Maze.S_VICTIM_CODE, _Maze.GREEN_VICTIM_CODE, _Maze.YELLOW_VICTIM_CODE, _Maze.RED_VICTIM_CODE].includes(victimType)){
       throw new CUSOTM_ERRORS.InvalidVictimError(victimType);
     }
   }
@@ -583,10 +543,10 @@ class _Wall{
   setVictim(victimType, victimSide){
     this._isValidVictim(victimType);
 
-    if (victimSide=== Maze.WALL_LEFT_SIDE){
+    if (victimSide=== _Maze.WALL_LEFT_SIDE){
       this.leftSideVictim= victimType;
     }
-    else if (victimSide=== Maze.WALL_RIGHT_SIDE){
+    else if (victimSide=== _Maze.WALL_RIGHT_SIDE){
       this.rightSideVictim= victimType;      
     }
   }
@@ -599,20 +559,20 @@ class _Wall{
     if ((this.leftSideVictim!== null) && (! this.leftVictimAdded)){
 
       let leftVictimModel= null;
-      const leftVictimMaterial= Maze.MATERIAL.clone();
+      const leftVictimMaterial= _Maze.MATERIAL.clone();
       switch (this.leftSideVictim) {
         case null:
           break;
   
-        case Maze.U_VICTIM_CODE:
+        case _Maze.U_VICTIM_CODE:
           {
-            leftVictimMaterial.color.set(Maze.FONT_COLOR);
+            leftVictimMaterial.color.set(_Maze.FONT_COLOR);
     
             leftVictimModel= new THREE.Mesh(
               new TextGeometry("U", {
-                font: this.font,
-                size: Maze.FONT_SIZE,
-                height: Maze.FONT_HEIGHT,
+                font: _Maze.VICTIMS_FONT,
+                size: _Maze.FONT_SIZE,
+                height: _Maze.FONT_HEIGHT,
               }),
               leftVictimMaterial
             );
@@ -621,20 +581,20 @@ class _Wall{
             const textX= -(textBoundingBox.max.x - textBoundingBox.min.x)/2;
             const textY= -(textBoundingBox.max.y - textBoundingBox.min.y)/2;
     
-            leftVictimModel.position.set(textX, textY, -(Maze.WALL_THICKNESS/2) - Maze.FONT_HEIGHT);
+            leftVictimModel.position.set(textX, textY, -(_Maze.WALL_THICKNESS/2) - _Maze.FONT_HEIGHT);
           }
           break;
   
   
-        case Maze.H_VICTIM_CODE:
+        case _Maze.H_VICTIM_CODE:
           {
-            leftVictimMaterial.color.set(Maze.FONT_COLOR);
+            leftVictimMaterial.color.set(_Maze.FONT_COLOR);
     
             leftVictimModel= new THREE.Mesh(
               new TextGeometry("H", {
-                font: this.font,
-                size: Maze.FONT_SIZE,
-                height: Maze.FONT_HEIGHT
+                font: _Maze.VICTIMS_FONT,
+                size: _Maze.FONT_SIZE,
+                height: _Maze.FONT_HEIGHT
               }),
               leftVictimMaterial
             );
@@ -643,20 +603,20 @@ class _Wall{
             const textX= -(textBoundingBox.max.x - textBoundingBox.min.x)/2;
             const textY= -(textBoundingBox.max.y - textBoundingBox.min.y)/2;
     
-            leftVictimModel.position.set(textX, textY, -(Maze.WALL_THICKNESS/2) - Maze.FONT_HEIGHT);
+            leftVictimModel.position.set(textX, textY, -(_Maze.WALL_THICKNESS/2) - _Maze.FONT_HEIGHT);
           }
           break;
   
   
-        case Maze.S_VICTIM_CODE:
+        case _Maze.S_VICTIM_CODE:
           {
-            leftVictimMaterial.color.set(Maze.FONT_COLOR);
+            leftVictimMaterial.color.set(_Maze.FONT_COLOR);
     
             leftVictimModel= new THREE.Mesh(
               new TextGeometry("S", {
-                font: this.font,
-                size: Maze.FONT_SIZE,
-                height: Maze.FONT_HEIGHT
+                font: _Maze.VICTIMS_FONT,
+                size: _Maze.FONT_SIZE,
+                height: _Maze.FONT_HEIGHT
               }),
               leftVictimMaterial
             );
@@ -665,48 +625,48 @@ class _Wall{
             const textX= -(textBoundingBox.max.x - textBoundingBox.min.x)/2;
             const textY= -(textBoundingBox.max.y - textBoundingBox.min.y)/2;
     
-            leftVictimModel.position.set(textX, textY, -(Maze.WALL_THICKNESS/2) - Maze.FONT_HEIGHT);
+            leftVictimModel.position.set(textX, textY, -(_Maze.WALL_THICKNESS/2) - _Maze.FONT_HEIGHT);
           }
           break;
   
   
-        case Maze.GREEN_VICTIM_CODE:
+        case _Maze.GREEN_VICTIM_CODE:
           {
-            leftVictimMaterial.color.set(Maze.GREEN_VICTIM_COLOR);
+            leftVictimMaterial.color.set(_Maze.GREEN_VICTIM_COLOR);
             leftVictimModel= new THREE.Mesh(
-              new THREE.BoxGeometry(Maze.COLOR_VICTIM_BASE_WIDTH, Maze.COLOR_VICTIM_HEIGHT, Maze.COLOR_VICTIM_BASE_HEIGHT),
+              new THREE.BoxGeometry(_Maze.COLOR_VICTIM_BASE_WIDTH, _Maze.COLOR_VICTIM_HEIGHT, _Maze.COLOR_VICTIM_BASE_HEIGHT),
               leftVictimMaterial
             )
   
-            const victimZ= -(Maze.WALL_THICKNESS/2) - (Maze.COLOR_VICTIM_BASE_HEIGHT/2);
+            const victimZ= -(_Maze.WALL_THICKNESS/2) - (_Maze.COLOR_VICTIM_BASE_HEIGHT/2);
             leftVictimModel.position.set(0, 0, victimZ);
           }
           break;
   
   
-        case Maze.YELLOW_VICTIM_CODE:
+        case _Maze.YELLOW_VICTIM_CODE:
           {
-            leftVictimMaterial.color.set(Maze.YELLOW_VICTIM_COLOR);
+            leftVictimMaterial.color.set(_Maze.YELLOW_VICTIM_COLOR);
             leftVictimModel= new THREE.Mesh(
-              new THREE.BoxGeometry(Maze.COLOR_VICTIM_BASE_WIDTH, Maze.COLOR_VICTIM_HEIGHT, Maze.COLOR_VICTIM_BASE_HEIGHT),
+              new THREE.BoxGeometry(_Maze.COLOR_VICTIM_BASE_WIDTH, _Maze.COLOR_VICTIM_HEIGHT, _Maze.COLOR_VICTIM_BASE_HEIGHT),
               leftVictimMaterial
             )
   
-            const victimZ= -(Maze.WALL_THICKNESS/2) - (Maze.COLOR_VICTIM_BASE_HEIGHT/2);
+            const victimZ= -(_Maze.WALL_THICKNESS/2) - (_Maze.COLOR_VICTIM_BASE_HEIGHT/2);
             leftVictimModel.position.set(0, 0, victimZ);
           }
           break;
   
   
-        case Maze.RED_VICTIM_CODE:
+        case _Maze.RED_VICTIM_CODE:
           {
-            leftVictimMaterial.color.set(Maze.RED_VICTIM_COLOR);
+            leftVictimMaterial.color.set(_Maze.RED_VICTIM_COLOR);
             leftVictimModel= new THREE.Mesh(
-              new THREE.BoxGeometry(Maze.COLOR_VICTIM_BASE_WIDTH, Maze.COLOR_VICTIM_HEIGHT, Maze.COLOR_VICTIM_BASE_HEIGHT),
+              new THREE.BoxGeometry(_Maze.COLOR_VICTIM_BASE_WIDTH, _Maze.COLOR_VICTIM_HEIGHT, _Maze.COLOR_VICTIM_BASE_HEIGHT),
               leftVictimMaterial
             )
   
-            const victimZ= -(Maze.WALL_THICKNESS/2) - (Maze.COLOR_VICTIM_BASE_HEIGHT/2);
+            const victimZ= -(_Maze.WALL_THICKNESS/2) - (_Maze.COLOR_VICTIM_BASE_HEIGHT/2);
             leftVictimModel.position.set(0, 0, victimZ);
           }
           break;
@@ -722,21 +682,21 @@ class _Wall{
     if ((this.rightSideVictim!== null) && (! this.rightVictimAdded)){
 
       let rightVictimModel= null;
-      let rightVictimMaterial= Maze.MATERIAL.clone();
+      let rightVictimMaterial= _Maze.MATERIAL.clone();
       switch (this.rightSideVictim) {
         case null:
           break;
   
   
-        case Maze.U_VICTIM_CODE:
+        case _Maze.U_VICTIM_CODE:
           {
-            rightVictimMaterial.color.set(Maze.FONT_COLOR);
+            rightVictimMaterial.color.set(_Maze.FONT_COLOR);
     
             rightVictimModel= new THREE.Mesh(
               new TextGeometry("U", {
-                font: this.font,
-                size: Maze.FONT_SIZE,
-                height: Maze.FONT_HEIGHT,
+                font: _Maze.VICTIMS_FONT,
+                size: _Maze.FONT_SIZE,
+                height: _Maze.FONT_HEIGHT,
               }),
               rightVictimMaterial
             );
@@ -745,20 +705,20 @@ class _Wall{
             const textX= -(textBoundingBox.max.x - textBoundingBox.min.x)/2;
             const textY= -(textBoundingBox.max.y - textBoundingBox.min.y)/2;
     
-            rightVictimModel.position.set(textX, textY, Maze.WALL_THICKNESS/2);
+            rightVictimModel.position.set(textX, textY, _Maze.WALL_THICKNESS/2);
           }
           break;
   
   
-        case Maze.H_VICTIM_CODE:
+        case _Maze.H_VICTIM_CODE:
           {
-            rightVictimMaterial.color.set(Maze.FONT_COLOR);
+            rightVictimMaterial.color.set(_Maze.FONT_COLOR);
     
             rightVictimModel= new THREE.Mesh(
               new TextGeometry("H", {
-                font: this.font,
-                size: Maze.FONT_SIZE,
-                height: Maze.FONT_HEIGHT
+                font: _Maze.VICTIMS_FONT,
+                size: _Maze.FONT_SIZE,
+                height: _Maze.FONT_HEIGHT
               }),
               rightVictimMaterial
             );
@@ -767,20 +727,20 @@ class _Wall{
             const textX= -(textBoundingBox.max.x - textBoundingBox.min.x)/2;
             const textY= -(textBoundingBox.max.y - textBoundingBox.min.y)/2;
   
-            rightVictimModel.position.set(textX, textY, Maze.WALL_THICKNESS/2);
+            rightVictimModel.position.set(textX, textY, _Maze.WALL_THICKNESS/2);
           }
           break;
   
   
-        case Maze.S_VICTIM_CODE:
+        case _Maze.S_VICTIM_CODE:
           {
-            rightVictimMaterial.color.set(Maze.FONT_COLOR);
+            rightVictimMaterial.color.set(_Maze.FONT_COLOR);
     
             rightVictimModel= new THREE.Mesh(
               new TextGeometry("S", {
-                font: this.font,
-                size: Maze.FONT_SIZE,
-                height: Maze.FONT_HEIGHT
+                font: _Maze.VICTIMS_FONT,
+                size: _Maze.FONT_SIZE,
+                height: _Maze.FONT_HEIGHT
               }),
               rightVictimMaterial
             );
@@ -789,44 +749,44 @@ class _Wall{
             const textX= -(textBoundingBox.max.x - textBoundingBox.min.x)/2;
             const textY= -(textBoundingBox.max.y - textBoundingBox.min.y)/2;
   
-            rightVictimModel.position.set(textX, textY, Maze.WALL_THICKNESS/2);
+            rightVictimModel.position.set(textX, textY, _Maze.WALL_THICKNESS/2);
           }
           break;
   
   
-        case Maze.GREEN_VICTIM_CODE:
-          rightVictimMaterial.color.set(Maze.GREEN_VICTIM_COLOR);
+        case _Maze.GREEN_VICTIM_CODE:
+          rightVictimMaterial.color.set(_Maze.GREEN_VICTIM_COLOR);
   
           rightVictimModel= new THREE.Mesh(
-            new THREE.BoxGeometry(Maze.COLOR_VICTIM_BASE_WIDTH, Maze.COLOR_VICTIM_HEIGHT, Maze.COLOR_VICTIM_BASE_HEIGHT),
+            new THREE.BoxGeometry(_Maze.COLOR_VICTIM_BASE_WIDTH, _Maze.COLOR_VICTIM_HEIGHT, _Maze.COLOR_VICTIM_BASE_HEIGHT),
             rightVictimMaterial
           )
   
-          rightVictimModel.position.set(0, 0, Maze.WALL_THICKNESS/2);
+          rightVictimModel.position.set(0, 0, _Maze.WALL_THICKNESS/2);
           break;
   
   
-        case Maze.YELLOW_VICTIM_CODE:
-          rightVictimMaterial.color.set(Maze.YELLOW_VICTIM_COLOR);
+        case _Maze.YELLOW_VICTIM_CODE:
+          rightVictimMaterial.color.set(_Maze.YELLOW_VICTIM_COLOR);
   
           rightVictimModel= new THREE.Mesh(
-            new THREE.BoxGeometry(Maze.COLOR_VICTIM_BASE_WIDTH, Maze.COLOR_VICTIM_HEIGHT, Maze.COLOR_VICTIM_BASE_HEIGHT),
+            new THREE.BoxGeometry(_Maze.COLOR_VICTIM_BASE_WIDTH, _Maze.COLOR_VICTIM_HEIGHT, _Maze.COLOR_VICTIM_BASE_HEIGHT),
             rightVictimMaterial
           )
   
-          rightVictimModel.position.set(0, 0, Maze.WALL_THICKNESS/2);
+          rightVictimModel.position.set(0, 0, _Maze.WALL_THICKNESS/2);
           break;
   
   
-        case Maze.RED_VICTIM_CODE:
-          rightVictimMaterial.color.set(Maze.RED_VICTIM_COLOR);
+        case _Maze.RED_VICTIM_CODE:
+          rightVictimMaterial.color.set(_Maze.RED_VICTIM_COLOR);
   
           rightVictimModel= new THREE.Mesh(
-            new THREE.BoxGeometry(Maze.COLOR_VICTIM_BASE_WIDTH, Maze.COLOR_VICTIM_HEIGHT, Maze.COLOR_VICTIM_BASE_HEIGHT),
+            new THREE.BoxGeometry(_Maze.COLOR_VICTIM_BASE_WIDTH, _Maze.COLOR_VICTIM_HEIGHT, _Maze.COLOR_VICTIM_BASE_HEIGHT),
             rightVictimMaterial
           )
   
-          rightVictimModel.position.set(0, 0, Maze.WALL_THICKNESS/2);
+          rightVictimModel.position.set(0, 0, _Maze.WALL_THICKNESS/2);
           break;
       }
   
@@ -844,17 +804,22 @@ class _Wall{
    */
   get3DModel(){
     // prepare the basic wall model
-    const wallMaterial= Maze.MATERIAL.clone();
-    wallMaterial.color.set(Maze.WALLS_COLOR);
+    const wallMaterial= _Maze.MATERIAL.clone();
+    wallMaterial.color.set(_Maze.WALLS_COLOR);
 
     const wallBaseModel= new THREE.Mesh(
-      new THREE.BoxGeometry(Maze.TILE_BASE_WIDTH, Maze.WALL_HEIGHT, Maze.WALL_THICKNESS),
+      new THREE.BoxGeometry(_Maze.TILE_BASE_WIDTH, _Maze.WALL_HEIGHT, _Maze.WALL_THICKNESS),
       wallMaterial
     );
 
     this._3DModel.add(wallBaseModel);
     
-    this._addVictims();
+    if (_Maze.VICTIMS_FONT!== null){
+      this._addVictims();
+    }
+    else{
+      console.warn("font not initialized, victims can not be rendered");
+    }
 
     this.alreadyBuilt= true;
     return this._3DModel;
@@ -864,13 +829,13 @@ class _Wall{
 class _Floor{
 
   static GEOMETRY= new THREE.BoxGeometry(
-    Maze.TILE_BASE_WIDTH,
-    Maze.TILE_THICKNESS,
-    Maze.TILE_BASE_HEIGHT
+    _Maze.TILE_BASE_WIDTH,
+    _Maze.TILE_THICKNESS,
+    _Maze.TILE_BASE_HEIGHT
   );
 
   constructor(floorType= 0){
-    if (! [Maze.REGULAR_FLOOR_CODE, Maze.BLACK_FLOOR_CODE, Maze.BLUE_FLOOR_CODE, Maze.CHECKPOINT_CODE].includes(floorType)){
+    if (! [_Maze.REGULAR_FLOOR_CODE, _Maze.BLACK_FLOOR_CODE, _Maze.BLUE_FLOOR_CODE, _Maze.CHECKPOINT_CODE].includes(floorType)){
       throw new CUSOTM_ERRORS.InvalidFloorCodeError(floorType);
     }
 
@@ -888,46 +853,46 @@ class _Floor{
     let finalMesh= null;
 
     switch (this.floorType) {
-      case Maze.REGULAR_FLOOR_CODE:
-        selectedMaterial=  Maze.MATERIAL.clone();
-        selectedMaterial.color.set(Maze.FLOOR_WHITE_COLOR);
+      case _Maze.REGULAR_FLOOR_CODE:
+        selectedMaterial=  _Maze.MATERIAL.clone();
+        selectedMaterial.color.set(_Maze.FLOOR_WHITE_COLOR);
         break;
 
-      case Maze.BLACK_FLOOR_CODE:
-        selectedMaterial= Maze.MATERIAL.clone();
-        selectedMaterial.color.set(Maze.FLOOR_BLACK_COLOR);
+      case _Maze.BLACK_FLOOR_CODE:
+        selectedMaterial= _Maze.MATERIAL.clone();
+        selectedMaterial.color.set(_Maze.FLOOR_BLACK_COLOR);
         break;
 
-      case Maze.BLUE_FLOOR_CODE:
-        selectedMaterial= Maze.MATERIAL.clone();
-        selectedMaterial.color.set(Maze.FLOOR_BLUE_COLOR);
+      case _Maze.BLUE_FLOOR_CODE:
+        selectedMaterial= _Maze.MATERIAL.clone();
+        selectedMaterial.color.set(_Maze.FLOOR_BLUE_COLOR);
         break;
 
-      case Maze.CHECKPOINT_CODE:
+      case _Maze.CHECKPOINT_CODE:
         selectedMaterial= [
-          Maze.MATERIAL.clone(),
-          Maze.MATERIAL.clone(),
+          _Maze.MATERIAL.clone(),
+          _Maze.MATERIAL.clone(),
           null,
-          Maze.MATERIAL.clone(),
-          Maze.MATERIAL.clone(),
-          Maze.MATERIAL.clone(),
+          _Maze.MATERIAL.clone(),
+          _Maze.MATERIAL.clone(),
+          _Maze.MATERIAL.clone(),
         ];
-        selectedMaterial.forEach(material=> material?.color.set(Maze.FLOOR_MIRROR_COLOR));
+        selectedMaterial.forEach(material=> material?.color.set(_Maze.FLOOR_MIRROR_COLOR));
 
         const mirror= new Reflector(
-          new THREE.PlaneGeometry(Maze.TILE_BASE_WIDTH, Maze.TILE_BASE_HEIGHT),
+          new THREE.PlaneGeometry(_Maze.TILE_BASE_WIDTH, _Maze.TILE_BASE_HEIGHT),
           {
             clipBias: 0,
             textureWidth: window.innerWidth * window.devicePixelRatio,
             textureHeight: window.innerHeight * window.devicePixelRatio,
-            color: Maze.FLOOR_MIRROR_COLOR,
+            color: _Maze.FLOOR_MIRROR_COLOR,
             recursion: 1,
           }
         );
       
         mirror.rotateX(- new MEASURES.Degrees(90).toRadians());
         this._3DModel.add(mirror);
-        mirror.position.set(0, Maze.TILE_THICKNESS/2, 0);
+        mirror.position.set(0, _Maze.TILE_THICKNESS/2, 0);
         break;
     }
     
@@ -939,4 +904,4 @@ class _Floor{
   }
 }
 
-export default Maze;
+export default _Maze;
