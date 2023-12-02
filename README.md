@@ -16,10 +16,11 @@ A JS-based web interface to visualize 3D models of a certain Rescue Maze map bas
 - Support for multi-level mazes
 - Performance optimizations
 - Loop closure
-TODO - Manage the problem of possible duplicate ramps in the Map._3DModel
+- TODO - Manage the problem of possible duplicate ramps in the Map._3DModel
 
 ## V 1.2.0 (future update):
 - A placeholder model of the robot is shown navigating the maze
+- Checks will be applied to alert the user when a maze has some strange properties I.E. ramps too steep, victims near colored floors, other competition clause
 
 ## V 1.3.0 (future update):
 - Pathfinding suggestions: the shortest path from tile A to tile B (chosen by the user) will be shown. (it won't necessarily be the path the robot will take)
