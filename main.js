@@ -9,9 +9,9 @@ const rootNode= document.getElementById("mazeContainer");
 
 const inspector= new Debugger(true, true, true);
 
-//////                               //////
-////// simulated environment updates //////
-//////                               //////
+///                               ///
+/// simulated environment updates ///
+///                               ///
 
 const sampleUpdates= [
   {
@@ -164,9 +164,9 @@ const sampleUpdates= [
 ];
 
 async function main(){
-  //////             //////
-  ////// scene setup //////
-  //////             //////
+  ///             ///
+  /// scene setup ///
+  ///             ///
 
   const scene = new THREE.Scene();
   scene.background= new THREE.Color(0x7FB7BE);
@@ -180,9 +180,9 @@ async function main(){
   });
   renderer.setSize(rootNode.clientWidth, rootNode.clientHeight);
 
-  //////        //////
-  ////// lights //////
-  //////        //////
+  ///        ///
+  /// lights ///
+  ///        ///
 
   const sun = new THREE.PointLight(0xffffff, 15);
   sun.position.set(2, 2, 2);
@@ -197,11 +197,11 @@ async function main(){
 
   const minLightLevel = new THREE.AmbientLight(0x606060); // Color in hexadecimal
   scene.add(minLightLevel);
-  
 
-  //////                //////
-  ////// controls setup //////
-  //////                //////
+
+  ///                ///
+  /// controls setup ///
+  ///                ///
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.mouseButtons = {
@@ -211,9 +211,9 @@ async function main(){
   };
   // controls.enablePan= false;
 
-  //////                           //////
-  ////// 3D environment generation //////
-  //////                           //////
+  ///                           ///
+  /// 3D environment generation ///
+  ///                           ///
 
   var axisHelper = new THREE.AxesHelper(3); // 3 is the size of the axes
   scene.add(axisHelper);
@@ -231,33 +231,33 @@ async function main(){
 
   rootNode.appendChild(renderer.domElement);
 
-  //////                //////
-  ////// animation loop //////
-  //////                //////
+  ///                ///
+  /// animation loop ///
+  ///                ///
 
   const animate = () => {
     requestAnimationFrame(animate);
-  
+
     lightHolder.quaternion.copy(camera.quaternion);
-  
+
     renderer.render(scene, camera);
   };
-  
+
   animate();
 
-  //////          //////
-  ////// refining //////
-  //////          //////
+  ///          ///
+  /// refining ///
+  ///          ///
 
   // make the renderer responsive
   window.addEventListener('resize', ()=> {
     const containerWidth = rootNode.clientWidth;
     const containerHeight = rootNode.clientHeight;
-  
+
     // Update camera aspect ratio
     camera.aspect = containerWidth / containerHeight;
     camera.updateProjectionMatrix();
-  
+
     // Update renderer size
     renderer.setSize(containerWidth, containerHeight);
   });
